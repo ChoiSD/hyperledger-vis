@@ -65,7 +65,7 @@ Suppose below configuration:
  SEatsP    | Salmon & Plankton + Human (as auditor)
 
  then You can build it like this:
- ![alt text]
+ ![alt text](https://github.com/ChoiSD/hyperledger-vis/blob/master/screenshots/Example.png "Example.png")
 
  And you can get crypto-config.yaml & configtx.yaml files at the right side.
  ```
