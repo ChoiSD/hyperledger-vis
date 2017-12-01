@@ -45,8 +45,8 @@ node ./server.js
 Open your web browser and connect to `localhost:3000/editHF.html`
 And use it!!!
 
-#### Example 1
-Suppose below configuration:
+### Example 1
+Suppose you want to build below configuration:
 
  member Org | domain
 ------------|--------
