@@ -1,0 +1,527 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Edit Hyperledger Fabric Netowork</title>
+
+  <style type="text/css">
+    body, select {
+      font: 10pt sans;
+    }
+    #mynetwork {
+      position:relative;
+      width: 800px;
+      height: 600px;
+      border: 1px solid lightgray;
+    }
+	#input_output {
+		position: absolute;
+		top: 150px;
+		left: 850px;
+        height: 10%;
+        width: 40%;
+    }
+    table.legend_table {
+      font-size: 11px;
+      border-width:1px;
+      border-color:#d3d3d3;
+      border-style:solid;
+    }
+    table.legend_table,td {
+      border-width:1px;
+      border-color:#d3d3d3;
+      border-style:solid;
+      padding: 2px;
+    }
+    div.table_content {
+      width:80px;
+      text-align:center;
+    }
+    div.table_description {
+      width:100px;
+    }
+
+    #operation {
+      font-size:28px;
+    }
+    #node-popUp {
+      display:none;
+      position:absolute;
+      top:350px;
+      left:170px;
+      z-index:299;
+      width:250px;
+      height:auto;
+      background-color: #f9f9f9;
+      border-style:solid;
+      border-width:3px;
+      border-color: #5394ed;
+      padding:10px;
+      text-align: center;
+    }
+    #edge-popUp {
+      display:none;
+      position:absolute;
+      top:350px;
+      left:170px;
+      z-index:299;
+      width:250px;
+      height:90px;
+      background-color: #f9f9f9;
+      border-style:solid;
+      border-width:3px;
+      border-color: #5394ed;
+      padding:10px;
+      text-align: center;
+    }
+  </style>
+  <script type="text/javascript" src="./vis.js"></script>
+  <link href="./node_modules/vis/dist/vis.css" rel="stylesheet" type="text/css" />
+
+  <script type="text/javascript">
+    var nodes = null;
+    var edges = null;
+    var network = null;
+    // Create default OrdererOrg
+    var data = {nodes: [{
+		id: 0,
+		label: 'OrdererOrg',
+		OrgName: 'OrdererOrg',
+		Peers: 3,
+		Kafka: 4,
+		Zookeeper: 3,
+		Domain: 'example.com',
+		shape: 'hexagon'
+	  }]};
+    var seed = 2;
+	var exportArea;
+	var exportButton;
+	var xhttp = new XMLHttpRequest();
+
+    function destroy() {
+      if (network !== null) {
+        network.destroy();
+        network = null;
+      }
+    }
+
+    function draw() {
+      destroy();
+      nodes = [];
+      edges = [];
+
+      // create a network
+      var container = document.getElementById('mynetwork');
+      var options = {
+        layout: {randomSeed:seed}, // just to make sure the layout is the same when the locale is changed
+        locale: 'en',
+        manipulation: {
+          addNode: function (data, callback) {
+            // filling in the popup DOM elements
+            document.getElementById('node-operation').innerHTML = "Add Org";
+            editNode(data, clearNodePopUp, callback);
+          },
+          editNode: function (data, callback) {
+            // filling in the popup DOM elements
+            document.getElementById('node-operation').innerHTML = "Edit Org";
+            editNode(data, cancelNodeEdit, callback);
+          },
+          addEdge: function (data, callback) {
+            if (data.from == data.to) {
+              var r = confirm("Do you want to connect the node to itself?");
+              if (r != true) {
+                callback(null);
+                return;
+              }
+            }
+            document.getElementById('edge-operation').innerHTML = "Add Channel";
+            editEdgeWithoutDrag(data, callback);
+          },
+          editEdge: {
+            editWithoutDrag: function(data, callback) {
+              document.getElementById('edge-operation').innerHTML = "Edit Channel";
+              editEdgeWithoutDrag(data,callback);
+            }
+          }
+        }
+      };
+      network = new vis.Network(container, data, options);
+    }
+
+    function editNode(data, cancelAction, callback) {
+	  document.getElementById('node-OrgName').value = data.OrgName || 'Org1';
+      document.getElementById('node-Peers').value = data.Peers || 2;
+	  document.getElementById('node-Domain').value = data.Domain || 'example.com';
+	  if (data.id == '0') {
+		addRow(data, 'Kafka');
+		addRow(data, 'Zookeeper');
+	  } else {
+		addRow(data, 'auditor');
+	  }
+      document.getElementById('node-saveButton').onclick = saveNodeData.bind(this, data, callback);
+      document.getElementById('node-cancelButton').onclick = cancelAction.bind(this, callback);
+      document.getElementById('node-popUp').style.display = 'block';
+	  
+	  function addRow(data, attrName) {
+	    var parent = document.getElementById('node-attr').getElementsByTagName('tbody')[0];
+		var newRow = parent.insertRow(parent.rows.length);
+		var cell0 = newRow.insertCell(0);
+		var cell1 = newRow.insertCell(1);
+		var txt = document.createTextNode(attrName);
+		cell0.appendChild(txt);
+		
+		var txtBox = document.createElement("input");
+		cell1.appendChild(txtBox);
+		txtBox.id = 'node-' + attrName;
+		if (attrName == 'auditor') {
+		  txtBox.type = 'checkbox';
+		  txtBox.checked = false;
+		  var label = document.createElement('label');
+		  label.htmlFor = txtBox.id;
+		  label.appendChild(document.createTextNode('Is this auditor?'));
+		  cell1.appendChild(label);
+		} else {		  
+		  txtBox.value = data[attrName];
+		}
+	  }
+    }
+
+    // Callback passed as parameter is ignored
+    function clearNodePopUp() {
+      document.getElementById('node-saveButton').onclick = null;
+      document.getElementById('node-cancelButton').onclick = null;
+      document.getElementById('node-popUp').style.display = 'none';
+    }
+
+    function cancelNodeEdit(callback) {
+      clearNodePopUp();
+	  if (document.getElementById('node-Kafka')) {
+	    deleteRow('Kafka');
+	  } 
+	  if (document.getElementById('node-Zookeeper')) {
+	    deleteRow('Zookeeper');
+	  } 
+	  if (document.getElementById('node-auditor')) {
+	    deleteRow('auditor');
+	  }
+	  callback(null);
+    }
+
+    function saveNodeData(data, callback) {
+      data.label = document.getElementById('node-OrgName').value;
+	  data.OrgName = document.getElementById('node-OrgName').value;
+	  data.Peers = document.getElementById('node-Peers').value;
+	  data.Domain = document.getElementById('node-Domain').value;
+	  if (data.id == '0') {
+		data.Kafka = document.getElementById('node-Kafka').value;
+		data.Zookeeper = document.getElementById('node-Zookeeper').value;
+		deleteRow('Kafka');
+		deleteRow('Zookeeper');
+	  }
+	  
+	  if (document.getElementById('node-auditor')) {
+	    data.isAuditor = document.getElementById('node-auditor').checked;
+		deleteRow('auditor');
+		if (data.isAuditor) {
+		  data.shape = 'diamond';
+		} else {
+		  data.shape = data.shape || 'box';
+		}
+	  } 
+      clearNodePopUp();
+      callback(data);	  
+    }
+	
+	function deleteRow(attrName) {
+	  var i = document.getElementById('node-' + attrName).parentNode.parentNode.rowIndex;
+	  document.getElementById('node-attr').deleteRow(i);
+	}
+
+    function editEdgeWithoutDrag(data, callback) {
+      // filling in the popup DOM elements
+      document.getElementById('edge-label').value = data.label || 'mychannel';
+      document.getElementById('edge-saveButton').onclick = saveEdgeData.bind(this, data, callback);
+      document.getElementById('edge-cancelButton').onclick = cancelEdgeEdit.bind(this,callback);
+      document.getElementById('edge-popUp').style.display = 'block';
+    }
+
+    function clearEdgePopUp() {
+      document.getElementById('edge-saveButton').onclick = null;
+      document.getElementById('edge-cancelButton').onclick = null;
+      document.getElementById('edge-popUp').style.display = 'none';
+    }
+
+    function cancelEdgeEdit(callback) {
+      clearEdgePopUp();
+      callback(null);
+    }
+
+    function saveEdgeData(data, callback) {
+      if (typeof data.to === 'object')
+        data.to = data.to.id
+      if (typeof data.from === 'object')
+        data.from = data.from.id
+      data.label = document.getElementById('edge-label').value;
+      clearEdgePopUp();
+      callback(data);
+    }
+
+    function init() {
+	  exportArea = document.getElementById('input_output');
+      exportButton = document.getElementById('export_button');
+      draw();
+    }
+	
+	function destroyNetwork() {
+        network.destroy();
+    }
+	
+	function clearOutputArea() {
+        exportArea.value = "";
+    }
+	
+	function downloadNetwork() {
+		var content = document.getElementById('input_output').value;
+		var uriContent =  "data:application/octet-stream;filename=filename.txt," + encodeURIComponent(content);
+		window.open(uriContent, 'filename.txt');
+	}
+	
+	function exportNetwork() {
+        clearOutputArea();
+		
+        var nodes = network.body.data.nodes._data;
+		var edges = network.body.data.edges._data;
+        
+		var cryptoConfig = makeCryptoConfig();
+		var configTxConfig = makeConfigTx();
+		
+        // pretty print node data
+		xhttp.open("POST", "/json2yaml", false);
+		xhttp.setRequestHeader("Content-type", "application/json");
+		xhttp.send(JSON.stringify(cryptoConfig, undefined, 2));
+		var cryptoYaml = xhttp.responseText;
+		
+		xhttp.open("POST", "/json2yaml", false);
+		xhttp.setRequestHeader("Content-type", "application/json");
+		xhttp.send(JSON.stringify(configTxConfig, undefined, 2));
+		var configYaml = xhttp.responseText;
+		
+        exportArea.value = "##########################\n#   crypto-config.yaml   #\n##########################\n"
+							+ cryptoYaml + "\n##########################\n#     configtx.yaml     #\n##########################\n"
+							+ configYaml;
+
+        resizeExportArea();
+		
+		function objectToArray(obj) {
+            return Object.keys(obj).map(function (key) {
+              return obj[key];
+            });
+        }
+		
+		function makeConfigTx() {
+			var configtx = {};
+			configtx.Profiles = {};
+			
+			var auditOrg = {};
+			let orgs = {};
+			Object.keys(nodes).forEach((key) => {
+				if (key != '0') orgs[key] = getOrganization(nodes[key]);
+				if (nodes[key].isAuditor) auditOrg = getOrganization(nodes[key]);
+			});
+			var peerOrgs = objectToArray(orgs);
+			
+			configtx.Profiles.OrdererGenesis = {
+				Orderer: getOrderer(nodes['0']),
+				Consortiums: {
+					SampleConsortium: {
+						Organizations: peerOrgs
+					}
+				}
+			};
+			
+			configtx.Profiles.AllOrgsChannel = {
+				Consortium: "SampleConsortium",
+				Application: {
+					Organizations: peerOrgs
+				}
+			};
+			
+			var channels = {};
+			Object.keys(edges).forEach((key) => {
+				let label = edges[key].label;
+				if (channels[label] == undefined) channels[label] = [];
+				if (edges[key].from != '0' & !nodes[edges[key].from].isAuditor) channels[label].push(edges[key].from);
+				if (edges[key].to != '0'   & !nodes[edges[key].to].isAuditor)   channels[label].push(edges[key].to);
+			});
+			// Remove duplicated node ID
+			Object.keys(channels).forEach((key) => {
+				channels[key] = channels[key].filter((elem, index, self) => {
+					return index == self.indexOf(elem);
+				});
+			});
+			
+			Object.keys(channels).forEach((key) => {
+				configtx.Profiles[key] = getChannel(channels[key]);
+			});
+			
+			return configtx;
+				
+			function getChannel(channel) {
+				let organizations = orgForChannel(channel);
+				if (Object.keys(auditOrg).length != 0) organizations.push(auditOrg);
+				return {
+					Consortium: "SampleConsortium",
+					Application: {
+						Organizations: organizations
+					}
+				};
+			}
+			
+			function orgForChannel(channel) {
+				return channel.map((key) => {
+					return getOrganization(nodes[key]);
+				});
+			}
+			
+			function getOrderer(orderer) {
+				var type = (orderer.Peers == 1)? 'solo' : 'kafka';
+				var addresses = [];
+				for (let i = 0; i < orderer.Peers; i++) {
+					addresses.push(`orderer${i}.${orderer.Domain}:7050`);
+				}
+				
+				var kafkas = [];
+				let num_kafka = (type == 'solo')? 0 : orderer.Kafka || 4;
+				for (let i = 0; i < num_kafka; i++) {
+					kafkas.push(`kafka${i}.${orderer.Domain}:9092`);
+				}
+				
+				return {
+					OrdererType: type,
+					Addresses: addresses,
+					BatchTimeout: "2s",
+					BatchSize: {
+						MaxMessageCount: 1,
+						AbsoluteMaxBytes: 10485760,
+						PreferredMaxBytes: 524288
+					},
+					Kafka: {
+						Brokers: kafkas
+					},
+					Organizations: [ getOrganization(orderer) ]
+				};
+			}
+			
+			function getOrganization(peer) {
+				if (peer.id == '0') {
+					return {
+						Name: peer.OrgName,
+						ID: peer.OrgName + "MSP",
+						MSPDir: "crypto-config/ordererOrganizations/" + peer.Domain + "/msp"
+					};
+				} else {
+					return {
+						Name: peer.OrgName,
+						ID: peer.OrgName + "MSP",
+						MSPDir: "crypto-config/peerOrganizations/" + peer.Domain + "/msp",
+						AnchorPeers: [{
+							Host: "peer0." + peer.Domain,
+							Port: 7051
+						}]
+					};
+				}
+			}
+		}
+		
+		function makeCryptoConfig() {
+			var crypto = {};			
+			crypto.OrdererOrgs = makeOrdererOrgs();
+			crypto.PeerOrgs = makePeerOrgs();
+			return crypto;
+			
+			function makeOrdererOrgs() {
+				var orderers = [];
+				for (let i = 0; i < nodes['0'].Peers; i++) {
+					orderers.push({ Hostname: 'orderer' + i });
+				}
+				
+				return [{
+					Name: 'Orderer',
+					Domain: nodes['0'].Domain,
+					Specs: orderers
+				}];
+			}
+			
+			function makePeerOrgs() {
+				var peers = [];
+				Object.keys(nodes).forEach((key) => {
+					let d = {
+						Name: nodes[key].OrgName,
+						Domain: nodes[key].Domain,
+						Template: {Count: parseInt(nodes[key].Peers, 10)},
+						Users: {Count: 1}
+					};
+					peers.push(d);		  
+				});
+								
+				return peers.slice(1);
+			}
+		}
+		
+		function resizeExportArea() {
+            exportArea.style.height = (1 + exportArea.scrollHeight) + "px";
+        }
+    }
+
+  </script>
+  
+</head>
+
+<body onload="init();">
+<h2>Editing Hyperledger Fabric network's configuration with GUI</h2>
+<p style="width: 700px; font-size:16px; text-align: justify;">
+  Read this first.
+  <ul>
+    <li>One channel, a.k.a. 'AllOrgsChannel', will be deployed by default which is a channel for all orgs.</li>
+	<li>Every channels conneting to OrdererOrg & Auditor will be ignored.</li>
+	<li>Auditor will be connected to all channels</li>
+  </ul>
+</p>
+
+<div id="node-popUp">
+  <span id="node-operation">Org</span> <br>
+  <table id='node-attr' style="margin:auto;">
+    <tr>
+      <td>OrgName</td><td><input id="node-OrgName" value="new value" /></td>
+    </tr>
+    <tr>
+      <td># of Peers</td><td><input id="node-Peers" value="new value" /></td>
+    </tr>
+	<tr>
+      <td>Domain</td><td><input id="node-Domain" value="new value" /></td>
+    </tr>
+  </table>
+  <input type="button" value="save" id="node-saveButton" />
+  <input type="button" value="cancel" id="node-cancelButton" />
+</div>
+
+<div id="edge-popUp">
+  <span id="edge-operation">Channel</span> <br>
+  <table style="margin:auto;">
+    <tr>
+      <td>label</td><td><input id="edge-label" value="new value" /></td>
+    </tr></table>
+  <input type="button" value="save" id="edge-saveButton" />
+  <input type="button" value="cancel" id="edge-cancelButton" />
+</div>
+
+<br />
+
+<textarea id=input_output placeholder="Config file will be exported here" cols="30" rows="10"></textarea>
+<input type="button" id="export_button" onclick="exportNetwork()" value="generate"></input>
+<input type="button" id="download_button" onclick="downloadNetwork()" value="download"></input>
+
+<div id="mynetwork"></div>
+
+</body>
+</html>
