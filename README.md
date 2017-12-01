@@ -17,7 +17,7 @@ Limitation:
 * need to edit BatchSize and BatchTimeout if you wish
 
 
-### How to use this
+## How to use this
 
 #### If you choose to use Docker
 Build docker images
@@ -45,7 +45,7 @@ node ./server.js
 Open your web browser and connect to `localhost:3000/editHF.html`
 And use it!!!
 
-### Example 1
+## Example 1
 Suppose you want to build below configuration:
 
  member Org | domain
